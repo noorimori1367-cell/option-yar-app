@@ -1,0 +1,81 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+
+      - name: Configure Expo project
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas init --force --non-interactive
+
+      - name: Build APK with EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          mkdir -p build
+          eas build \
+            --platform android \
+            --profile preview \
+            --non-interactive \
+            --wait \
+            --json > build/eas-result.json
+          cat build/eas-result.json
+
+      - name: Download APK
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+
+          const raw = fs.readFileSync('build/eas-result.json', 'utf8').trim();
+          let data = JSON.parse(raw);
+
+          if (Array.isArray(data)) {
+            data = data[0];
+          }
+
+          const url =
+            data?.artifacts?.buildUrl ||
+            data?.artifact?.buildUrl;
+
+          if (!url) {
+            console.error('APK download URL not found.');
+            process.exit(1);
+          }
+
+          console.log('Downloading APK from:', url);
+
+          execFileSync(
+            'curl',
+            ['-L', '--fail', url, '-o', 'build/option-yar.apk'],
+            { stdio: 'inherit' }
+          );
+          NODE
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: option-yar-apk
+          path: build/option-yar.apk
+          if-no-files-found: error
