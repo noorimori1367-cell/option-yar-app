@@ -10,6 +10,7 @@ import { chapters } from './src/course';
 
 I18nManager.allowRTL(true);
 const STORAGE_KEY='option-yar-progress-v5';
+const ANSWERS_KEY='option-yar-answers-v5';
 const fa=n=>String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
 
 function Card({children,onPress,style}) {
@@ -53,12 +54,14 @@ export default function App(){
      }); setFonts(true);
    }catch(e){ setFonts(false); }
    try{const raw=await AsyncStorage.getItem(STORAGE_KEY); if(raw)setDone(JSON.parse(raw));}catch{}
+   try{const raw=await AsyncStorage.getItem(ANSWERS_KEY); if(raw)setAnswers(JSON.parse(raw));}catch{}
    setReady(true);
  })()},[]);
  const F=fonts?'Sahel':undefined, FB=fonts?'SahelBold':undefined;
  const all=useMemo(()=>chapters.flatMap(c=>c.lessons),[]);
  const completed=all.filter(l=>done[l.id]).length, progress=Math.round(completed/all.length*100);
  const save=async n=>{setDone(n);try{await AsyncStorage.setItem(STORAGE_KEY,JSON.stringify(n))}catch{}};
+ const saveAnswers=async n=>{setAnswers(n);try{await AsyncStorage.setItem(ANSWERS_KEY,JSON.stringify(n))}catch{}};
  const Header=({title,back})=><View style={styles.header}>
    <Pressable onPress={()=>setScreen(back||{name:'home'})}><Text style={styles.back}>‹</Text></Pressable>
    <Text style={[styles.headerTitle,{fontFamily:FB}]}>{title}</Text><View style={{width:30}}/>
@@ -107,42 +110,71 @@ export default function App(){
    const layers=d.intro_layers||[`برای فهم «${l.title}» اول مسئله‌ای که حل می‌کند را ببین.`,l.body,'این مفهوم باید در سناریوهای مختلف بررسی شود.'];
    return <SafeAreaView style={styles.safe}><Header title={l.title} back={{name:'chapter',id:ch.id}}/>
     <ScrollView contentContainerStyle={styles.pad}>
-     <Text style={[styles.section,{fontFamily:FB}]}>۱. مفهوم اصلی — از صفر</Text>
+     <Text style={[styles.section,{fontFamily:FB}]}>مفهوم اصلی — از صفر</Text>
      <Card><Text style={[styles.miniTitle,{fontFamily:FB}]}>اول با زبان خیلی ساده</Text><Text style={[styles.body,{fontFamily:F}]}>{layers[0]}</Text></Card>
      <Card><Text style={[styles.miniTitle,{fontFamily:FB}]}>حالا دقیق‌تر</Text><Text style={[styles.body,{fontFamily:F}]}>{d.concept||l.body}</Text><Text style={[styles.body,{fontFamily:F,marginTop:12}]}>{layers[1]}</Text></Card>
      <Card style={styles.blueCard}><Text style={[styles.miniTitle,{fontFamily:FB}]}>چرا برای معامله‌گر مهم است؟</Text><Text style={[styles.body,{fontFamily:F}]}>{layers[2]}</Text></Card>
 
      {(l.bambo_sections||[]).length>0&&<>
-       <Text style={[styles.section,{fontFamily:FB}]}>۲. تکمیل آموزش با نکات بازار آپشن ایران</Text>
+       <Text style={[styles.section,{fontFamily:FB}]}>تکمیل آموزش با نکات بازار آپشن ایران</Text>
        {l.bambo_sections.map((s,i)=><Card key={i} style={i%3===0?styles.greenCard:i%3===1?styles.example:undefined}>
          <Text style={[styles.miniTitle,{fontFamily:FB}]}>{s.title}</Text><Text style={[styles.body,{fontFamily:F}]}>{s.text}</Text>
        </Card>)}
      </>}
 
-     <Text style={[styles.section,{fontFamily:FB}]}>۳. منطق و مکانیزم</Text>
+     <Text style={[styles.section,{fontFamily:FB}]}>منطق و مکانیزم</Text>
      <Card><Text style={[styles.body,{fontFamily:F}]}>{d.mechanics||l.body}</Text></Card>
-     <Text style={[styles.section,{fontFamily:FB}]}>۴. مثال عددی</Text>
+     <Text style={[styles.section,{fontFamily:FB}]}>مثال عددی</Text>
      <Card style={styles.example}><Text style={[styles.body,{fontFamily:F}]}>{d.example||l.example}</Text></Card>
-     <Text style={[styles.section,{fontFamily:FB}]}>۵. نکته عملی معامله‌گر</Text>
+
+     {(d.breakeven||d.maxProfit||d.maxLoss)&&<>
+       <Text style={[styles.section,{fontFamily:FB}]}>اعداد کلیدی این استراتژی</Text>
+       <Card style={styles.keyNumbersCard}>
+         {d.breakeven&&<View style={styles.keyRow}><Text style={[styles.keyLabel,{fontFamily:FB}]}>نقطه سربه‌سر</Text><Text style={[styles.keyValue,{fontFamily:F}]}>{d.breakeven}</Text></View>}
+         {d.maxProfit&&<View style={styles.keyRow}><Text style={[styles.keyLabel,{fontFamily:FB,color:'#16865B'}]}>حداکثر سود</Text><Text style={[styles.keyValue,{fontFamily:F}]}>{d.maxProfit}</Text></View>}
+         {d.maxLoss&&<View style={styles.keyRow}><Text style={[styles.keyLabel,{fontFamily:FB,color:'#C33F50'}]}>حداکثر زیان</Text><Text style={[styles.keyValue,{fontFamily:F}]}>{d.maxLoss}</Text></View>}
+       </Card>
+     </>}
+
+     {(d.scenarios||[]).length>0&&<>
+       <Text style={[styles.section,{fontFamily:FB}]}>سناریوهای مختلف سود و زیان در سررسید</Text>
+       {d.scenarios.map((s,i)=>{
+         const profit=s.pnl>0, flat=s.pnl===0;
+         const rowStyle=profit?styles.scenarioRowGood:flat?styles.scenarioRowFlat:styles.scenarioRowBad;
+         const pnlColor=profit?'#16865B':flat?'#5D7288':'#C33F50';
+         return <Card key={i} style={rowStyle}>
+           <View style={styles.row}>
+             <Text style={[styles.title,{fontFamily:FB,flex:1}]}>{s.price}</Text>
+             <Text style={[styles.big,{fontFamily:FB,color:pnlColor,marginBottom:0}]}>{s.pnl>0?'+':''}{fa(s.pnl)}</Text>
+           </View>
+           <Text style={[styles.sub,{fontFamily:F,marginTop:6}]}>{s.detail}</Text>
+         </Card>;
+       })}
+       <Text style={[styles.disclaimer,{fontFamily:F}]}>اعداد بر مبنای مثال عددی همین درس و به‌ازای هر واحد دارایی پایه است؛ برای نتیجه واقعی باید در اندازه قرارداد ضرب و کارمزد کم شود.</Text>
+     </>}
+
+     <Text style={[styles.section,{fontFamily:FB}]}>نکته عملی معامله‌گر</Text>
      <Card style={styles.greenCard}><Text style={[styles.body,{fontFamily:F}]}>{d.practical||'قبل از معامله، سناریوی ورود و خروج را مشخص کن.'}</Text></Card>
-     <Text style={[styles.section,{fontFamily:FB}]}>۶. ریسک‌ها</Text>
+     <Text style={[styles.section,{fontFamily:FB}]}>اثر گذر زمان و تغییر IV</Text>
+     <Card style={styles.blueCard}><Text style={[styles.body,{fontFamily:F}]}>گذر زمان (Theta) روی موقعیت‌های خریداری‌شده معمولاً فرسایشی و روی موقعیت‌های فروخته‌شده معمولاً مطلوب عمل می‌کند؛ افزایش IV معمولاً ارزش اختیارهای خریداری‌شده را بالا می‌برد و برای فروشنده نامطلوب است. قبل از ورود مشخص کن گذر زمان و تغییر IV به نفع این موقعیت خواهد بود یا علیه آن.</Text></Card>
+     <Text style={[styles.section,{fontFamily:FB}]}>ریسک‌ها</Text>
      <Card style={styles.redCard}><Text style={[styles.body,{fontFamily:F}]}>{d.risk||'ریسک موقعیت، زمان، نقدشوندگی و سناریوی بدبینانه را بررسی کن.'}</Text></Card>
-     <Text style={[styles.section,{fontFamily:FB}]}>۷. دام رایج</Text>
+     <Text style={[styles.section,{fontFamily:FB}]}>دام رایج</Text>
      <Card><Text style={[styles.body,{fontFamily:F}]}>{d.mistake||'تصمیم‌گیری فقط بر اساس Premium یا آخرین قیمت.'}</Text></Card>
-     <Text style={[styles.section,{fontFamily:FB}]}>۸. سؤال فوری همین درس</Text>
+     <Text style={[styles.section,{fontFamily:FB}]}>سؤال فوری همین درس</Text>
      <Card><Text style={[styles.title,{fontFamily:FB}]}>{q.question}</Text>
-       {q.options.map((o,i)=><Pressable key={i} style={[styles.option,selected===i&&styles.optionOn]} onPress={()=>setAnswers({...answers,[l.id]:i})}><Text style={[styles.optionText,{fontFamily:F}]}>{o}</Text></Pressable>)}
+       {q.options.map((o,i)=><Pressable key={i} style={[styles.option,selected===i&&styles.optionOn]} onPress={()=>saveAnswers({...answers,[l.id]:i})}><Text style={[styles.optionText,{fontFamily:F}]}>{o}</Text></Pressable>)}
        {selected!==undefined&&<Text style={[styles.feedback,{fontFamily:F,color:selected===q.answer?'#16865B':'#C33F50'}]}>{selected===q.answer?'✓ درست':'✕ نادرست'} — {q.explanation}</Text>}
      </Card>
      <Pressable style={[styles.primary,done[l.id]&&styles.doneBtn]} onPress={()=>save({...done,[l.id]:!done[l.id]})}><Text style={[styles.primaryText,{fontFamily:FB}]}>{done[l.id]?'✓ یاد گرفتم — لغو تیک':'این درس را یاد گرفتم'}</Text></Pressable>
-     {(l.references||[]).length>0&&<Text style={[styles.disclaimer,{fontFamily:F}]}>منابع تکمیلی: بامبو فاند + منابع پایه Cboe/OIC. مطالب برای آموزش آپشن‌یار بازنویسی شده‌اند.</Text>}
+     {(l.references||[]).length>0&&<Text style={[styles.disclaimer,{fontFamily:F}]}>منابع تکمیلی: بامبو فاند و/یا Cboe Options Institute و Options Industry Council (OIC). مطالب برای آموزش آپشن‌یار بازنویسی شده‌اند، نه کپی مستقیم.</Text>}
     </ScrollView></SafeAreaView>
  }
 
  if(screen.name==='quiz'){
    const ch=chapters.find(c=>c.id===screen.id),key='chapter-'+ch.id,ans=answers[key]||{},score=ch.quiz.filter((q,i)=>ans[i]===q.a).length;
    return <SafeAreaView style={styles.safe}><Header title="تمرین پایان فصل" back={{name:'chapter',id:ch.id}}/><ScrollView contentContainerStyle={styles.pad}>
-    {ch.quiz.map((q,qi)=><Card key={qi}><Text style={[styles.title,{fontFamily:FB}]}>{fa(qi+1)}. {q.q}</Text>{q.opts.map((o,i)=><Pressable key={i} style={[styles.option,ans[qi]===i&&styles.optionOn]} onPress={()=>setAnswers({...answers,[key]:{...ans,[qi]:i}})}><Text style={[styles.optionText,{fontFamily:F}]}>{o}</Text></Pressable>)}</Card>)}
+    {ch.quiz.map((q,qi)=><Card key={qi}><Text style={[styles.title,{fontFamily:FB}]}>{fa(qi+1)}. {q.q}</Text>{q.opts.map((o,i)=><Pressable key={i} style={[styles.option,ans[qi]===i&&styles.optionOn]} onPress={()=>saveAnswers({...answers,[key]:{...ans,[qi]:i}})}><Text style={[styles.optionText,{fontFamily:F}]}>{o}</Text></Pressable>)}</Card>)}
     <Card style={styles.greenCard}><Text style={[styles.big,{fontFamily:FB}]}>امتیاز: {fa(score)} از {fa(ch.quiz.length)}</Text><Text style={[styles.sub,{fontFamily:F}]}>{score/ch.quiz.length>=.7?'این فصل را خوب فهمیدی.':'بهتر است بخش‌های اشتباه را مرور کنی.'}</Text></Card>
    </ScrollView></SafeAreaView>
  }
@@ -178,5 +210,12 @@ const styles=StyleSheet.create({
  inputWrap:{marginBottom:10},inputLabel:{fontSize:13,color:'#334E68',textAlign:'right',writingDirection:'rtl',marginBottom:5},
  input:{backgroundColor:'#FFF',borderWidth:1,borderColor:'#DCE4EC',borderRadius:12,padding:12,textAlign:'right',fontSize:15},
  segment:{flexDirection:'row-reverse',gap:8,marginVertical:10},segBtn:{flex:1,padding:12,borderRadius:12,backgroundColor:'#E7ECF2',alignItems:'center'},segOn:{backgroundColor:'#A8DDD8'},segText:{color:'#17324D'},
- big:{fontSize:20,color:'#102A43',textAlign:'right',writingDirection:'rtl',marginBottom:8}
+ big:{fontSize:20,color:'#102A43',textAlign:'right',writingDirection:'rtl',marginBottom:8},
+ keyNumbersCard:{backgroundColor:'#FDF6E9',borderColor:'#F0DBA5'},
+ keyRow:{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',paddingVertical:7,borderBottomWidth:1,borderColor:'#EFE1BE'},
+ keyLabel:{fontSize:14,color:'#334E68',textAlign:'right',writingDirection:'rtl'},
+ keyValue:{fontSize:13,color:'#102A43',textAlign:'left',writingDirection:'ltr'},
+ scenarioRowGood:{backgroundColor:'#EEF9F4',borderColor:'#CBEBDD'},
+ scenarioRowFlat:{backgroundColor:'#F4F7FA',borderColor:'#E2E8EF'},
+ scenarioRowBad:{backgroundColor:'#FFF1F2',borderColor:'#F2C9CE'}
 });
